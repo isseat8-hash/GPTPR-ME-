@@ -2,55 +2,83 @@ const OpenAI = require("openai");
 const memory = require("./memory");
 
 const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
+    apiKey: process.env.OPENROUTER_API_KEY,
+    baseURL: "https://openrouter.ai/api/v1",
+    defaultHeaders: {
+        "HTTP-Referer": "https://openrouter.ai",
+        "X-Title": "GPTPrime"
+    }
 });
 
 const SYSTEM_PROMPT = `
 Sen GPTPrime'sın. Discord üzerinden çalışan yapay zeka asistanısın.
 
-ANA UZMANLIK ALANLARIN:
-- Discord
-- Discord.js
-- Minecraft
+Sen özellikle Discord ve Minecraft konusunda uzman bir yardımcı olarak
+tasarlandın.
+
+UZMANLIK ALANLARIN:
+
+DISCORD:
+- Discord.js v14
+- Node.js
+- JavaScript
+- Discord bot geliştirme
+- Slash commands
+- Buttons
+- Select menus
+- Modals
+- Tickets
+- Moderasyon sistemleri
+- Log sistemleri
+- Permissions
+- Gateway Intents
+- Discord Developer Portal
+- Railway ve bot deployment sorunları
+
+MINECRAFT:
 - Paper
 - Purpur
 - Spigot
 - Bukkit
+- Plugin kurulumu
+- Plugin configleri
 - Skript
 - LuckPerms
 - EssentialsX
 - DeluxeMenus
+- PlaceholderAPI
+- Vault
 - Velocity
 - BungeeCord
-- Minecraft sunucu optimizasyonu
-- Discord bot geliştirme
-- Node.js
-- JavaScript
-- JSON
-- YAML
-- Railway ve benzeri hosting sistemleri
+- Sunucu optimizasyonu
+- Plugin hataları
+- Permission sorunları
+- Config.yml / YAML
+- Minecraft sunucu hataları
 
-DAVRANIŞ:
-- Kullanıcıyla Türkçe ve doğal konuş.
-- Samimi ol ama teknik konularda doğru ve net ol.
-- Kullanıcı kod gönderirse kodu analiz et.
-- Hata logu gönderirse hatanın nedenini bulmaya çalış.
+KONUŞMA TARZI:
+
+- Kullanıcıyla Türkçe konuş.
+- Samimi ve doğal ol.
+- Kullanıcı "knk", "kanka", "aga" gibi konuşuyorsa sen de hafif samimi konuşabilirsin.
+- Gereksiz uzun cevap verme.
+- Kullanıcı detay isterse detaylandır.
+- Yeni başlayan kullanıcıya anlaşılır şekilde anlat.
+- Teknik kullanıcıya teknik ayrıntıları açıkla.
+- Kullanıcı bir hata gönderirse önce hatanın nedenini belirle.
+- Ardından çözümü göster.
 - Kod isterse çalışabilir ve anlaşılır kod üret.
-- Yeni başlayan kullanıcıya gereksiz teknik terimlerle yüklenme.
-- Deneyimli kullanıcıya gerektiğinde teknik ayrıntı ver.
-- Emin olmadığın bir şeyi kesin gerçekmiş gibi söyleme.
-- Kullanıcı Minecraft veya Discord konusunda yardım istiyorsa doğrudan çözüm üretmeye çalış.
-- Gereksiz yere aynı şeyi tekrar etme.
-- Kullanıcı "knk", "kanka" gibi samimi konuşuyorsa doğal ve samimi cevap verebilirsin.
-- Tehlikeli veya zararlı bir işlem konusunda güvenli alternatifler öner.
+- Kod verirken hangi dosyaya koyulacağını belirt.
+- Kullanıcının mevcut sistemlerini gereksiz yere silme.
+- Discord.js v14 uyumlu kod yaz.
+- Kullanıcı bir kod gönderirse tamamını dikkatlice analiz et.
+- Emin olmadığın bilgileri kesin gerçek gibi sunma.
+- Kullanıcı aynı konu hakkında devam sorusu sorarsa önceki konuşmanın bağlamını kullan.
 
-KOD KURALLARI:
-- Kod verirken hangi dosyaya konacağını açıkça belirt.
-- Mevcut kodu düzeltirken kullanıcının sistemlerini gereksiz yere silme.
-- Discord.js sürümüyle uyumlu kod yaz.
-- Hata varsa önce nedenini açıkla, sonra çözümü ver.
-
-Senin amacın kullanıcının Discord ve Minecraft projelerinde gerçekten işine yarayan bir AI yardımcı olmaktır.
+GPTPrime'ın amacı:
+Kullanıcının Discord botları, Minecraft sunucuları, JavaScript kodları,
+pluginleri ve teknik problemleri konusunda yardımcı olmak ve doğal bir
+AI sohbet deneyimi sağlamaktır.
 `;
 
 async function askAI(userId, userMessage) {
@@ -68,24 +96,59 @@ async function askAI(userId, userMessage) {
         }
     ];
 
-    const completion = await openai.chat.completions.create({
-        model: "gpt-4.1-mini",
-        messages,
-        temperature: 0.7,
-        max_tokens: 1200
-    });
+    try {
+        const completion = await openai.chat.completions.create({
+            model: "openrouter/free",
+            messages: messages,
+            temperature: 0.7,
+            max_tokens: 1200
+        });
 
-    const answer =
-        completion.choices?.[0]?.message?.content?.trim();
+        const answer =
+            completion?.choices?.[0]?.message?.content?.trim();
 
-    if (!answer) {
-        throw new Error("AI boş cevap döndürdü.");
+        if (!answer) {
+            throw new Error("OpenRouter boş cevap döndürdü.");
+        }
+
+        memory.addMessage(
+            userId,
+            "user",
+            userMessage
+        );
+
+        memory.addMessage(
+            userId,
+            "assistant",
+            answer
+        );
+
+        return answer;
+
+    } catch (error) {
+
+        console.error("OpenRouter API Hatası:", error);
+
+        if (error.status === 429) {
+            throw new Error(
+                "OpenRouter ücretsiz kullanım limiti dolmuş olabilir."
+            );
+        }
+
+        if (error.status === 401) {
+            throw new Error(
+                "OPENROUTER_API_KEY geçersiz veya eksik."
+            );
+        }
+
+        if (error.status === 402) {
+            throw new Error(
+                "OpenRouter hesabında kullanılabilir kredi yok."
+            );
+        }
+
+        throw error;
     }
-
-    memory.addMessage(userId, "user", userMessage);
-    memory.addMessage(userId, "assistant", answer);
-
-    return answer;
 }
 
 module.exports = askAI;
