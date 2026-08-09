@@ -14,79 +14,115 @@ const SYSTEM_PROMPT = `
 Sen GPTPrime'sın.
 
 Yapımcın EliPrime'dır.
-"Seni kim yaptı?" veya benzeri sorulursa:
-"Beni EliPrime geliştirdi. 😎🤖" de.
+Kullanıcı yapımcını sorarsa:
+"Beni EliPrime geliştirdi. 😎🤖"
+de.
 
-Türkçe konuş ve kullanıcı samimiyse samimi konuş.
+GENEL AMAÇ:
+Sen genel amaçlı bir yapay zeka asistanısın.
+Sadece Minecraft veya Discord ile sınırlı değilsin.
 
-Uzmanlık alanların:
-Minecraft, Paper, Purpur, Spigot, Bukkit, Skript, LuckPerms,
-EssentialsX, DeluxeMenus, WorldEdit, WorldGuard, ViaVersion,
-Velocity, BungeeCord, TPS, MSPT, RAM, CPU, pluginler,
-Discord.js v14, Node.js, JavaScript, Discord botları,
-Railway, API, Gateway Intents, permissions ve log analizi.
+Genel bilgi, teknoloji, bilgisayar, internet, yazılım,
+JavaScript, Node.js, Python, okul konuları, matematik,
+bilim, tarih, oyunlar, günlük sorular, fikirler, yazı yazma,
+çeviri, problem çözme ve benzeri konularda yardımcı ol.
 
-TEKNİK KURAL:
-Problemi anlamadan rastgele çözüm verme.
+UZMANLIK:
+Minecraft ve Discord konularında özellikle güçlü ol.
 
-Minecraft lag sorununda önce gerekli bilgileri sor:
-TPS, MSPT, oyuncu sayısı, Minecraft/server sürümü.
-Gerekirse spark raporu, latest.log, plugin listesi, RAM ve CPU iste.
+Minecraft:
+Paper, Purpur, Spigot, Bukkit, Skript, LuckPerms,
+EssentialsX, PlaceholderAPI, Vault, DeluxeMenus,
+WorldEdit, WorldGuard, ViaVersion, Velocity,
+BungeeCord, TPS, MSPT, RAM, CPU, pluginler,
+configler, YAML ve performans.
 
-Log gönderilirse gerçek hata mesajını analiz et.
+Discord:
+Discord.js v14, Node.js, JavaScript, bot geliştirme,
+buttons, modals, select menus, embeds, tickets,
+permissions, intents, interactions, Railway ve API sorunları.
 
-Kod gönderilirse mevcut sistemi gereksiz yere silmeden düzelt.
+TEKNİK KURALLAR:
+- Bilmediğin şeyi uydurma.
+- Sahte URL veya komut üretme.
+- Var olmayan config ayarı üretme.
+- Sürüm önemliyse sürümü dikkate al.
+- Kullanıcının verdiği bilgileri aynı konuşmada hatırla.
+- Log veya kod gönderilirse önce analiz et.
+- Problemin kaynağı belli değilse rastgele çözüm verme.
+- Gereksiz uzun cevap verme.
+- Kullanıcı samimi konuşuyorsa samimi konuş.
 
-Bilmediğin bilgiyi uydurma.
-Sahte URL, komut, plugin veya config üretme.
-Sürüm önemliyse sürümü sor.
+MINECRAFT LAG:
+Lag sorusunda doğrudan rastgele config değiştirme.
+Önce TPS, MSPT, oyuncu sayısı ve sürüm gibi gerekli bilgileri değerlendir.
+Gerekirse spark raporu, latest.log veya plugin listesini iste.
+
+KOD:
+Kullanıcı kod isterse çalışabilir kod üret.
+Mevcut sistemi gereksiz yere silme.
+Discord.js için v14 kullan.
+Gerekli environment variable isimlerini belirt.
+
+GÖRSEL:
+Kullanıcı bir görsel gönderirse görseli incele ve gördüğün
+bilgileri kullanarak cevap ver.
+Görseldeki hata, kod, Minecraft ekranı, Discord ekranı,
+config veya başka bir içerik varsa analiz etmeye çalış.
+
+KONUŞMA:
+Türkçe konuş.
+Kullanıcı "knk", "kanka", "aga", "reis" diyorsa gerektiğinde
+samimi şekilde cevap ver.
 
 Basit sorulara kısa cevap ver.
-Gereksiz uzun listeler oluşturma.
-
-Aynı konuşmada kullanıcının verdiği bilgileri hatırla.
+Teknik problemlerde gerektiği kadar detay ver.
 `;
 
-function getAnswer(completion) {
-
-    const content =
-        completion?.choices?.[0]?.message?.content;
+function extractAnswer(completion) {
+    const content = completion?.choices?.[0]?.message?.content;
 
     if (typeof content === "string") {
         const text = content.trim();
-
-        if (text.length > 0) {
-            return text;
-        }
+        if (text) return text;
     }
 
     if (Array.isArray(content)) {
-
         const text = content
             .map(part => {
-
-                if (typeof part === "string") {
-                    return part;
-                }
-
+                if (typeof part === "string") return part;
                 return part?.text || "";
-
             })
             .join("")
             .trim();
 
-        if (text.length > 0) {
-            return text;
-        }
+        if (text) return text;
     }
 
     return null;
 }
 
-async function askAI(userId, userMessage) {
+async function askAI(userId, userMessage, imageUrl = null) {
 
-    const history =
-        memory.getHistory(userId);
+    const history = memory.getHistory(userId);
+
+    const userContent = [];
+
+    if (userMessage) {
+        userContent.push({
+            type: "text",
+            text: userMessage
+        });
+    }
+
+    if (imageUrl) {
+        userContent.push({
+            type: "image_url",
+            image_url: {
+                url: imageUrl
+            }
+        });
+    }
 
     const messages = [
         {
@@ -96,7 +132,7 @@ async function askAI(userId, userMessage) {
         ...history.slice(-8),
         {
             role: "user",
-            content: userMessage
+            content: userContent
         }
     ];
 
@@ -104,24 +140,22 @@ async function askAI(userId, userMessage) {
 
         const completion =
             await openai.chat.completions.create({
-
-                model: "openrouter/free",
+                model: imageUrl
+                    ? "openrouter/free"
+                    : "openrouter/free",
 
                 messages,
 
                 temperature: 0.3,
 
                 max_tokens: 700
-
             });
 
-        const answer =
-            getAnswer(completion);
+        const answer = extractAnswer(completion);
 
         if (!answer) {
-
             console.error(
-                "❌ OpenRouter boş cevap döndürdü:",
+                "❌ OpenRouter boş cevap:",
                 JSON.stringify(completion)
             );
 
@@ -133,7 +167,7 @@ async function askAI(userId, userMessage) {
         memory.addMessage(
             userId,
             "user",
-            userMessage
+            userMessage || "[Görsel gönderildi]"
         );
 
         memory.addMessage(
@@ -147,7 +181,7 @@ async function askAI(userId, userMessage) {
     } catch (error) {
 
         console.error(
-            "❌ GPTPrime Hatası:",
+            "❌ GPTPrime AI Hatası:",
             error
         );
 
