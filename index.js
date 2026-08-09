@@ -1,19 +1,14 @@
+require("dotenv").config();
+
 const {
     Client,
     GatewayIntentBits,
-    Partials,
-    ChannelType
+    Partials
 } = require("discord.js");
 
 const askAI = require("./ai");
 
-
-// ===============================
-// GPTPrime Discord Client
-// ===============================
-
 const client = new Client({
-
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.DirectMessages,
@@ -23,268 +18,125 @@ const client = new Client({
     partials: [
         Partials.Channel
     ]
-
 });
 
-
-// ===============================
-// ENVIRONMENT CHECK
-// ===============================
-
-if (!process.env.DISCORD_TOKEN) {
-
-    console.error(
-        "❌ DISCORD_TOKEN bulunamadı!"
-    );
-
-    process.exit(1);
-
-}
-
-if (!process.env.OPENROUTER_API_KEY) {
-
-    console.error(
-        "❌ OPENROUTER_API_KEY bulunamadı!"
-    );
-
-    process.exit(1);
-
-}
-
-
-// ===============================
-// BOT READY
-// ===============================
-
-client.once("ready", () => {
-
-    console.log("");
-    console.log("=================================");
-    console.log("🤖 GPTPrime AKTİF!");
-    console.log("=================================");
-    console.log(`👤 Bot: ${client.user.tag}`);
-    console.log(`🆔 ID: ${client.user.id}`);
-    console.log("💬 DM sistemi hazır.");
-    console.log("🧠 OpenRouter AI hazır.");
-    console.log("🎮 Minecraft uzman sistemi hazır.");
-    console.log("💻 Discord uzman sistemi hazır.");
-    console.log("=================================");
-    console.log("");
-
+client.once("clientReady", () => {
+    console.log(`🤖 GPTPrime aktif: ${client.user.tag}`);
 });
-
-
-// ===============================
-// DM MESSAGE SYSTEM
-// ===============================
 
 client.on("messageCreate", async (message) => {
 
-    // Bot mesajlarını yok say
-    if (message.author.bot) return;
-
-
-    // Sadece DM
-    if (
-        message.channel.type !==
-        ChannelType.DM
-    ) {
-        return;
-    }
-
-
-    const content =
-        message.content?.trim();
-
-
-    // Boş mesajları yok say
-    if (!content) return;
-
-
-    console.log(
-        `📩 DM | ${message.author.tag}: ${content}`
-    );
-
-
     try {
 
-        // Yazıyor göstergesi
+        if (message.author.bot) return;
+
+        // Sadece DM
+        if (message.guild) return;
+
+        const userId = message.author.id;
+
+        let text = message.content?.trim() || "";
+
+        let imageUrl = null;
+
+        // Ekleri kontrol et
+        if (message.attachments.size > 0) {
+
+            const image = message.attachments.find(
+                attachment =>
+                    attachment.contentType &&
+                    attachment.contentType.startsWith("image/")
+            );
+
+            if (image) {
+                imageUrl = image.url;
+            }
+        }
+
+        // Hiçbir şey gönderilmediyse cevap verme
+        if (!text && !imageUrl) return;
+
         await message.channel.sendTyping();
 
+        console.log(
+            `📩 DM | ${message.author.tag} | ${imageUrl ? "Görsel + mesaj" : "Mesaj"}`
+        );
 
-        // AI'ya gönder
-        const response =
-            await askAI(
-                message.author.id,
-                content
+        const answer = await askAI(
+            userId,
+            text,
+            imageUrl
+        );
+
+        if (!answer) return;
+
+        // Discord mesaj limitini aşarsa böl
+        const chunks = [];
+
+        for (let i = 0; i < answer.length; i += 1900) {
+            chunks.push(
+                answer.slice(i, i + 1900)
             );
-
-
-        if (!response) {
-
-            await message.reply(
-                "🤖 Şu anda cevap oluşturamadım."
-            );
-
-            return;
         }
 
-
-        // Discord maksimum mesaj uzunluğu
-        const MAX_LENGTH = 1900;
-
-
-        // Kısa cevap
-        if (
-            response.length <=
-            MAX_LENGTH
-        ) {
-
-            await message.reply(
-                response
-            );
-
-            return;
+        for (const chunk of chunks) {
+            await message.channel.send(chunk);
         }
-
-
-        // Uzun cevapları böl
-        for (
-            let i = 0;
-            i < response.length;
-            i += MAX_LENGTH
-        ) {
-
-            const chunk =
-                response.slice(
-                    i,
-                    i + MAX_LENGTH
-                );
-
-
-            await message.channel.send(
-                chunk
-            );
-
-        }
-
 
     } catch (error) {
 
         console.error(
-            "❌ GPTPrime hata:",
+            "❌ GPTPrime DM Hatası:",
             error
         );
-
 
         let errorMessage =
-            "❌ Şu anda bir hata oluştu. Biraz sonra tekrar dene.";
+            "Şu anda bir hata oluştu knk 😕";
 
+        if (error.message) {
 
-        if (
-            error.message &&
-            error.message.includes(
-                "OPENROUTER_API_KEY"
-            )
-        ) {
+            if (
+                error.message.includes(
+                    "OpenRouter API anahtarı"
+                )
+            ) {
+                errorMessage =
+                    "OpenRouter API anahtarıyla ilgili bir sorun var knk. 🔑";
+            }
 
-            errorMessage =
-                "❌ OpenRouter API anahtarı bulunamadı. Railway Variables kısmını kontrol et.";
+            else if (
+                error.message.includes(
+                    "kullanılabilir kredi"
+                )
+            ) {
+                errorMessage =
+                    "OpenRouter'da kullanılabilir kredi yok knk. 💳";
+            }
 
+            else if (
+                error.message.includes(
+                    "kullanım limitine"
+                )
+            ) {
+                errorMessage =
+                    "OpenRouter kullanım limitine ulaşıldı knk. ⏳";
+            }
+
+            else if (
+                error.message.includes(
+                    "boş cevap"
+                )
+            ) {
+                errorMessage =
+                    "AI bu sefer boş cevap döndürdü knk, tekrar dener misin? 🤖";
+            }
         }
 
-
-        if (
-            error.status === 401
-        ) {
-
-            errorMessage =
-                "❌ OpenRouter API anahtarı geçersiz.";
-
-        }
-
-
-        if (
-            error.status === 429
-        ) {
-
-            errorMessage =
-                "⏳ OpenRouter ücretsiz kullanım limitine ulaşıldı. Daha sonra tekrar deneyelim.";
-
-        }
-
-
-        if (
-            error.status === 402
-        ) {
-
-            errorMessage =
-                "💳 OpenRouter'da kullanılabilir kredi bulunmuyor.";
-
-        }
-
-
-        await message.reply(
+        await message.channel.send(
             errorMessage
         );
-
     }
-
 });
-
-
-// ===============================
-// DISCORD ERROR
-// ===============================
-
-client.on("error", (error) => {
-
-    console.error(
-        "❌ Discord Client Error:",
-        error
-    );
-
-});
-
-
-// ===============================
-// PROCESS ERRORS
-// ===============================
-
-process.on(
-    "unhandledRejection",
-    (error) => {
-
-        console.error(
-            "❌ Unhandled Rejection:",
-            error
-        );
-
-    }
-);
-
-
-process.on(
-    "uncaughtException",
-    (error) => {
-
-        console.error(
-            "❌ Uncaught Exception:",
-            error
-        );
-
-    }
-);
-
-
-// ===============================
-// LOGIN
-// ===============================
-
-console.log(
-    "🔄 GPTPrime Discord'a bağlanıyor..."
-);
-
 
 client.login(
     process.env.DISCORD_TOKEN
