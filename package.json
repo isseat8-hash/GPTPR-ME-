@@ -1,0 +1,14 @@
+{
+  "name": "gptprime",
+  "version": "1.0.0",
+  "description": "GPTPrime - Discord & Minecraft AI Assistant",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.21.0",
+    "dotenv": "^16.6.1",
+    "openai": "^5.12.0"
+  }
+}
